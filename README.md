@@ -1,6 +1,8 @@
 # luminescent-ants
 Project for CSCI 5551 - Introduction to Intelligent Robotic Systems
+
 Authors: Mario Jerez and Jack Swanberg
+
 A Reinforcement Learning model of muliple agents simulated in PettingZoo
 
 We are building off of the Simple Spread environment in the pettingzoo library.
