@@ -1,6 +1,6 @@
 # noqa: D212, D415
 """
-# Forage
+# Switch Sides
 TODO: update comments below to be accurate to switch_sides rather than simple_spread
 
 ```{figure} mpe_simple_spread.gif
@@ -55,16 +55,16 @@ simple_spread_v3.env(N=3, local_ratio=0.5, max_cycles=25, continuous_actions=Fal
 import numpy as np
 from gymnasium.utils import EzPickle
 
-from pettingzoo.mpe._mpe_utils.core import Agent, Landmark, World
-from pettingzoo.mpe._mpe_utils.scenario import BaseScenario
-from pettingzoo.mpe._mpe_utils.simple_env import SimpleEnv, make_env
+from forage._mpe_utils.core import Agent, Landmark, World
+from forage._mpe_utils.scenario import BaseScenario
+from forage._mpe_utils.simple_env import SimpleEnv, make_env
 from pettingzoo.utils.conversions import parallel_wrapper_fn
 
 
 class raw_env(SimpleEnv, EzPickle):
     def __init__(
         self,
-        N=3,
+        N=4,
         local_ratio=0.5,
         max_cycles=25,
         continuous_actions=False,
@@ -92,7 +92,7 @@ class raw_env(SimpleEnv, EzPickle):
             continuous_actions=continuous_actions,
             local_ratio=local_ratio
         )
-        self.metadata["name"] = "forage_v0"
+        self.metadata["name"] = "switch_sides_v0"
 
 
 env = make_env(raw_env)
@@ -100,12 +100,12 @@ parallel_env = parallel_wrapper_fn(env)
 
 
 class Scenario(BaseScenario):
-    def make_world(self, N=3):
+    def make_world(self, N=4):
         world = World()
         # set any world properties first
         world.dim_c = 2
         num_agents = N
-        num_landmarks = N
+        num_landmarks = 2
         world.collaborative = True
         # add agents
         world.agents = [Agent() for i in range(num_agents)]
@@ -113,12 +113,12 @@ class Scenario(BaseScenario):
             agent.name = f"agent_{i}"
             agent.collide = True
             agent.silent = True
-            agent.size = 0.15
+            agent.size = 0.05
         # add landmarks
         world.landmarks = [Landmark() for i in range(num_landmarks)]
         for i, landmark in enumerate(world.landmarks):
             landmark.name = "landmark %d" % i
-            landmark.collide = False
+            landmark.collide = True
             landmark.movable = False
         return world
 

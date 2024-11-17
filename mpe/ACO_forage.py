@@ -1,7 +1,8 @@
-import forage_v0
+import forage_v0 as forage_v0
 
 env = forage_v0.parallel_env(render_mode="human")
 observations, infos = env.reset()
+env.render()
 
 while env.agents:
     # this is where you would insert your policy
