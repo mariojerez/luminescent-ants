@@ -55,7 +55,7 @@ simple_spread_v3.env(N=3, local_ratio=0.5, max_cycles=25, continuous_actions=Fal
 import numpy as np
 from gymnasium.utils import EzPickle
 
-from forage._mpe_utils.core import Agent, Landmark, World
+from forage._mpe_utils.core import Agent, Resource, World
 from forage._mpe_utils.scenario import BaseScenario
 from forage._mpe_utils.simple_env import SimpleEnv, make_env
 from pettingzoo.utils.conversions import parallel_wrapper_fn
@@ -100,72 +100,71 @@ parallel_env = parallel_wrapper_fn(env)
 
 
 class Scenario(BaseScenario):
-    def make_world(self, N=4):
+    def make_world(self, num_agents=4, num_resources=2):
         world = World()
         # set any world properties first
         world.dim_c = 2
-        num_agents = N
-        num_landmarks = 2
+        num_resources = 2
         world.collaborative = True
         # add agents
         world.agents = [Agent() for i in range(num_agents)]
         for i, agent in enumerate(world.agents):
             agent.name = f"agent_{i}"
-            agent.collide = True
+            agent.collide = True # TODO: Decide if will set to False
             agent.silent = True
             agent.size = 0.05
-        # add landmarks
-        world.landmarks = [Landmark() for i in range(num_landmarks)]
-        for i, landmark in enumerate(world.landmarks):
-            landmark.name = "landmark %d" % i
-            landmark.collide = True
-            landmark.movable = False
+        # add resources
+        world.resources = [Resource() for i in range(num_resources)] #TODO: Adjust Landmark code to Food
+        for i, resource in enumerate(world.resources):
+            resource.name = "resource %d" % i
+            resource.collide = True
+            resource.movable = False
         return world
 
     def reset_world(self, world, np_random):
         # random properties for agents
         for i, agent in enumerate(world.agents):
             agent.color = np.array([0.35, 0.35, 0.85])
-        # random properties for landmarks
-        for i, landmark in enumerate(world.landmarks):
-            landmark.color = np.array([0.25, 0.25, 0.25])
+        # random properties for resources
+        for i, resource in enumerate(world.resources):
+            resource.color = np.array([0.25, 0.25, 0.25])
         # set random initial states
         for agent in world.agents:
             agent.state.p_pos = np_random.uniform(-1, +1, world.dim_p)
-            agent.state.p_vel = np.zeros(world.dim_p)
-            agent.state.c = np.zeros(world.dim_c)
-        for i, landmark in enumerate(world.landmarks):
-            landmark.state.p_pos = np_random.uniform(-1, +1, world.dim_p)
-            landmark.state.p_vel = np.zeros(world.dim_p)
+            agent.state.p_vel = np.zeros(world.dim_p) # positional dimensions
+            agent.state.c = np.zeros(world.dim_c) # color dimensions
+        for i, resource in enumerate(world.resources): 
+            resource.state.p_pos = np_random.uniform(-1, +1, world.dim_p) # TODO: Check if something other than uniform can be used to clump food together
+            resource.state.p_vel = np.zeros(world.dim_p) #TODO: Should not have option for velocity
 
     def benchmark_data(self, agent, world):
         rew = 0
         collisions = 0
-        occupied_landmarks = 0
+        occupied_resources = 0
         min_dists = 0
-        for lm in world.landmarks:
+        for r in world.resources:
             dists = [
-                np.sqrt(np.sum(np.square(a.state.p_pos - lm.state.p_pos)))
+                np.sqrt(np.sum(np.square(a.state.p_pos - r.state.p_pos)))
                 for a in world.agents
             ]
             min_dists += min(dists)
             rew -= min(dists)
             if min(dists) < 0.1:
-                occupied_landmarks += 1
+                occupied_resources += 1
         if agent.collide:
             for a in world.agents:
                 if self.is_collision(a, agent):
                     rew -= 1
                     collisions += 1
-        return (rew, collisions, min_dists, occupied_landmarks)
+        return (rew, collisions, min_dists, occupied_resources)
 
     def is_collision(self, agent1, agent2):
         delta_pos = agent1.state.p_pos - agent2.state.p_pos
         dist = np.sqrt(np.sum(np.square(delta_pos)))
         dist_min = agent1.size + agent2.size
-        return True if dist < dist_min else False
+        return dist < dist_min
 
-    def reward(self, agent, world):
+    def reward(self, agent, world): #TODO: Adapt for objective function, which counts how much food is within decision domain
         # Agents are rewarded based on minimum agent distance to each landmark, penalized for collisions
         rew = 0
         if agent.collide:
@@ -175,19 +174,20 @@ class Scenario(BaseScenario):
 
     def global_reward(self, world):
         rew = 0
-        for lm in world.landmarks:
+        for r in world.resources:
             dists = [
-                np.sqrt(np.sum(np.square(a.state.p_pos - lm.state.p_pos)))
+                np.sqrt(np.sum(np.square(a.state.p_pos - r.state.p_pos)))
                 for a in world.agents
             ]
             rew -= min(dists)
         return rew
 
-    def observation(self, agent, world):
+    #TODO: Add local-decison domain (and radial sensor range) instance variable to agent and depict it with an outer outline in pygame.
+    def observation(self, agent, world): #TODO: Edit so that can only observe agents within local-decision domain
         # get positions of all entities in this agent's reference frame
         entity_pos = []
-        for entity in world.landmarks:  # world.entities:
-            entity_pos.append(entity.state.p_pos - agent.state.p_pos)
+        for resource in world.resources:  # world.entities:
+            entity_pos.append(resource.state.p_pos - agent.state.p_pos) # I think returns vector of length distance between entity and landmark and direction of landmark. TODO: ADAPT FOR vector to other ants and food (within local-decision domain)
         # communication of all other agents
         comm = []
         other_pos = []
@@ -195,7 +195,8 @@ class Scenario(BaseScenario):
             if other is agent:
                 continue
             comm.append(other.state.c)
-            other_pos.append(other.state.p_pos - agent.state.p_pos)
+            other_pos.append(other.state.p_pos - agent.state.p_pos) #gets vector from agent to something else that isn't an agent?
         return np.concatenate(
             [agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + comm
         )
+        # returns agent's velocity and position vectors, the relative positions of landmarks, and relative pos of other agents, and comm is all 0

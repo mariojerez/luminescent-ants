@@ -53,10 +53,12 @@ class Entity:  # properties and state of physical world entity
         return self.initial_mass
 
 
-class Landmark(Entity):  # properties of landmark entities
+class Resource(Entity):  # properties of resource entities
     def __init__(self):
         super().__init__()
-
+        self.movable = True
+        self.collide = False
+        
 
 class Agent(Entity):  # properties of agent entities
     def __init__(self):
@@ -85,7 +87,7 @@ class World:  # multi-agent world
     def __init__(self):
         # list of agents and entities (can change at execution-time!)
         self.agents = []
-        self.landmarks = []
+        self.resources = []
         # communication channel dimensionality
         self.dim_c = 0
         # position dimensionality
@@ -103,7 +105,7 @@ class World:  # multi-agent world
     # return all entities in the world
     @property
     def entities(self):
-        return self.agents + self.landmarks
+        return self.agents + self.resources
 
     # return all agents controllable by external policies
     @property

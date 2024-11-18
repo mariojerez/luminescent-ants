@@ -7,7 +7,7 @@ from gymnasium import spaces
 from gymnasium.utils import seeding
 
 from pettingzoo import AECEnv
-from forage._mpe_utils.core import Agent, Landmark
+from forage._mpe_utils.core import Agent, Resource
 from pettingzoo.utils import wrappers
 from pettingzoo.utils.agent_selector import agent_selector
 
@@ -85,7 +85,7 @@ class SimpleEnv(AECEnv):
         state_dim = 0
         for agent in self.world.agents:
             if agent.movable:
-                space_dim = self.world.dim_p * 2 + 1
+                space_dim = self.world.dim_p * 2 + 1 # if dim_p is 2, space_dim = 5. Why? TODO: Understand what space_dim is for
             elif self.continuous_actions:
                 space_dim = 0
             else:
@@ -98,12 +98,12 @@ class SimpleEnv(AECEnv):
 
             obs_dim = len(self.scenario.observation(agent, self.world))
             state_dim += obs_dim
-            if self.continuous_actions:
+            if self.continuous_actions: #TODO: Decide if we want to have continuous actions
                 self.action_spaces[agent.name] = spaces.Box(
                     low=0, high=1, shape=(space_dim,)
                 )
             else:
-                self.action_spaces[agent.name] = spaces.Discrete(space_dim)
+                self.action_spaces[agent.name] = spaces.Discrete(space_dim) #n = space_dim, start = 0 (num elements in space) #for some reason action spaces is dim_0 * 2 + 1 + obs_dim
             self.observation_spaces[agent.name] = spaces.Box(
                 low=-np.float32(np.inf),
                 high=+np.float32(np.inf),
@@ -216,7 +216,7 @@ class SimpleEnv(AECEnv):
                 agent.action.u[0] += action[0][2] - action[0][1]
                 agent.action.u[1] += action[0][4] - action[0][3]
             else:
-                # process discrete action
+                # process discrete action ## TODO: Handle step size, handle masking so they can't go off grid
                 if action[0] == 1:
                     agent.action.u[0] = -1.0
                 if action[0] == 2:
@@ -299,12 +299,15 @@ class SimpleEnv(AECEnv):
         self.screen.fill((255, 255, 255))
 
         # update bounds to center around agent
-        all_poses = [entity.state.p_pos for entity in self.world.entities]
-        cam_range = np.max(np.abs(np.array(all_poses)))
+        #all_poses = [entity.state.p_pos for entity in self.world.entities]
+        #cam_range = np.max(np.abs(np.array(all_poses)))
+
+        #TODO: Get rid of scaling
+        #TODO: Adjust environment so that it is bounded between -1 and 1
 
         # The scaling factor is used for dynamic rescaling of the rendering - a.k.a Zoom In/Zoom Out effect
         # The 0.9 is a factor to keep the entities from appearing "too" out-of-bounds
-        scaling_factor = 0.9 * self.original_cam_range / cam_range
+        #scaling_factor = 0.9 * self.original_cam_range / cam_range
 
         # update geometry and text positions
         text_line = 0
@@ -315,28 +318,28 @@ class SimpleEnv(AECEnv):
                 -1
             )  # this makes the display mimic the old pyglet setup (ie. flips image)
             x = (
-                (x / cam_range) * self.width // 2 * 0.9
+                (x / self.original_cam_range) * self.width // 2 * 0.9
             )  # the .9 is just to keep entities from appearing "too" out-of-bounds
-            y = (y / cam_range) * self.height // 2 * 0.9
+            y = (y / self.original_cam_range) * self.height // 2 * 0.9
             x += self.width // 2
             y += self.height // 2
 
             # 350 is an arbitrary scale factor to get pygame to render similar sizes as pyglet
             if self.dynamic_rescaling:
-                radius = entity.size * 350 * scaling_factor
+                radius = entity.size * 350 #* scaling_factor
             else:
                 radius = entity.size * 350
             
             if isinstance(entity, Agent):
                 pygame.draw.circle(self.screen, entity.color * 200, (x, y), radius)
                 pygame.draw.circle(self.screen, (0, 0, 0), (x, y), radius, 1)  # borders
-            elif isinstance(entity, Landmark):
-                pygame.draw.rect(self.screen, entity.color * 200, (x, y, radius * 10, radius * 20))
-                pygame.draw.rect(self.screen, (0, 0, 0), (x, y, radius, radius * 10), 20)
+            elif isinstance(entity, Resource):
+                pygame.draw.rect(self.screen, entity.color * 200, (x, y, radius, radius))
+                pygame.draw.rect(self.screen, (0, 0, 0), (x, y, radius, radius), 1)
 
-            assert (
-                0 < x < self.width and 0 < y < self.height
-            ), f"Coordinates {(x, y)} are out of bounds."
+            #assert (
+            #    0 < x < self.width and 0 < y < self.height
+            #), f"Coordinates {(x, y)} are out of bounds."
 
             # text
             if isinstance(entity, Agent):
