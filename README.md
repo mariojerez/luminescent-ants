@@ -1,5 +1,5 @@
 # Foraging with Glowworm Swarm Based Algorithm in pettingzoo
-A Reinforcement Learning model of muliple agents simulated in PettingZoo
+An Ant Colony Optimization model of muliple agents simulated in PettingZoo
 
 We are building off of the Simple Spread environment in the pettingzoo library.
 https://pettingzoo.farama.org/environments/mpe/simple_spread/
