@@ -8,14 +8,19 @@ class EntityState:  # physical/external base state of all entities
         # physical velocity
         self.p_vel = None
 
-
-class AgentState(
-    EntityState
-):  # state of agents (including communication and internal/mental state)
+"""state of agent (including communication and internal/mental state)"""
+class AgentState(EntityState):  
     def __init__(self):
         super().__init__()
         # communication utterance
         self.c = None
+
+"""state of resource"""
+class ResourceState(EntityState):
+    def __init__(self):
+        super().__init__()
+        # amount of resource left
+        self.amount = 0
 
 
 class Action:  # action of the agent
@@ -58,6 +63,7 @@ class Resource(Entity):  # properties of resource entities
         super().__init__()
         self.movable = True
         self.collide = False
+        self.state = ResourceState()
         
 
 class Agent(Entity):  # properties of agent entities
@@ -140,7 +146,7 @@ class World:  # multi-agent world
         for i, agent in enumerate(self.agents):
             if agent.movable:
                 noise = (
-                    np.random.randn(*agent.action.u.shape) * agent.u_noise
+                    np.random.randn(*agent.action.u.shape) * agent.u_noise #TODO: UNDERSTAND THIS
                     if agent.u_noise
                     else 0.0
                 )
@@ -173,7 +179,7 @@ class World:  # multi-agent world
             entity.state.p_pos += entity.state.p_vel * self.dt
             entity.state.p_vel = entity.state.p_vel * (1 - self.damping)
             if p_force[i] is not None:
-                entity.state.p_vel += (p_force[i] / entity.mass) * self.dt
+                entity.state.p_vel += (p_force[i] / entity.mass) * self.dt 
             if entity.max_speed is not None:
                 speed = np.sqrt(
                     np.square(entity.state.p_vel[0]) + np.square(entity.state.p_vel[1])

@@ -52,7 +52,7 @@ class SimpleEnv(AECEnv):
         self.width = 700
         self.height = 700
         self.screen = pygame.Surface([self.width, self.height])
-        self.max_size = 1
+        self.max_size = 1 #TODO: See what this does
         self.game_font = pygame.freetype.Font(
             os.path.join(os.path.dirname(__file__), "secrcode.ttf"), 24
         )
@@ -121,7 +121,7 @@ class SimpleEnv(AECEnv):
         # Get the original cam_range
         # This will be used to scale the rendering
         all_poses = [entity.state.p_pos for entity in self.world.entities]
-        self.original_cam_range = np.max(np.abs(np.array(all_poses)))
+        self.original_cam_range = np.max(np.abs(np.array(all_poses))) #TODO: Get rid of this
 
         self.steps = 0
 
@@ -217,6 +217,7 @@ class SimpleEnv(AECEnv):
                 agent.action.u[1] += action[0][4] - action[0][3]
             else:
                 # process discrete action ## TODO: Handle step size, handle masking so they can't go off grid
+                #TODO: Check that allows themto move diagonally.
                 if action[0] == 1:
                     agent.action.u[0] = -1.0
                 if action[0] == 2:
@@ -288,7 +289,7 @@ class SimpleEnv(AECEnv):
         self.draw()
         if self.render_mode == "rgb_array":
             observation = np.array(pygame.surfarray.pixels3d(self.screen))
-            return np.transpose(observation, axes=(1, 0, 2))
+            return np.transpose(observation, axes=(1, 0, 2)) #
         elif self.render_mode == "human":
             pygame.display.flip()
             self.clock.tick(self.metadata["render_fps"])

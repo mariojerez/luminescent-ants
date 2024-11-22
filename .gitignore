@@ -93,3 +93,6 @@ $RECYCLE.BIN/
 
 __pycache__/
 .idea/*
+.vscode/
+venv/
+   
