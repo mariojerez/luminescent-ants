@@ -49,9 +49,9 @@ class SimpleEnv(AECEnv):
         self.render_mode = render_mode
         pygame.init()
         self.viewer = None
-        self.width = 700
-        self.height = 700
-        self.screen = pygame.Surface([self.width, self.height])
+        self.length = 1246 # cm
+        self.width = 639 #cm
+        self.screen = pygame.Surface([self.length, self.width])
         self.max_size = 1 #TODO: See what this does
         self.game_font = pygame.freetype.Font(
             os.path.join(os.path.dirname(__file__), "secrcode.ttf"), 24
@@ -219,13 +219,13 @@ class SimpleEnv(AECEnv):
                 # process discrete action ## TODO: Handle step size, handle masking so they can't go off grid
                 #TODO: Check that allows themto move diagonally.
                 if action[0] == 1:
-                    agent.action.u[0] = -1.0
+                    agent.action.u[0] = -100.0
                 if action[0] == 2:
-                    agent.action.u[0] = +1.0
+                    agent.action.u[0] = +100.0
                 if action[0] == 3:
-                    agent.action.u[1] = -1.0
+                    agent.action.u[1] = -100.0
                 if action[0] == 4:
-                    agent.action.u[1] = +1.0
+                    agent.action.u[1] = +100.0
             sensitivity = 5.0
             if agent.accel is not None:
                 sensitivity = agent.accel
@@ -315,28 +315,13 @@ class SimpleEnv(AECEnv):
         for e, entity in enumerate(self.world.entities):
             # geometry
             x, y = entity.state.p_pos
-            y *= (
-                -1
-            )  # this makes the display mimic the old pyglet setup (ie. flips image)
-            x = (
-                (x / self.original_cam_range) * self.width // 2 * 0.9
-            )  # the .9 is just to keep entities from appearing "too" out-of-bounds
-            y = (y / self.original_cam_range) * self.height // 2 * 0.9
-            x += self.width // 2
-            y += self.height // 2
 
-            # 350 is an arbitrary scale factor to get pygame to render similar sizes as pyglet
-            if self.dynamic_rescaling:
-                radius = entity.size * 350 #* scaling_factor
-            else:
-                radius = entity.size * 350
-            
             if isinstance(entity, Agent):
-                pygame.draw.circle(self.screen, entity.color * 200, (x, y), radius)
-                pygame.draw.circle(self.screen, (0, 0, 0), (x, y), radius, 1)  # borders
+                pygame.draw.circle(self.screen, entity.color * 200, (x, y), entity.size)
+                pygame.draw.circle(self.screen, (0, 0, 0), (x, y), entity.size, 1)  # borders
             elif isinstance(entity, Resource):
-                pygame.draw.rect(self.screen, entity.color * 200, (x, y, radius, radius))
-                pygame.draw.rect(self.screen, (0, 0, 0), (x, y, radius, radius), 1)
+                pygame.draw.rect(self.screen, entity.color * 200, (x, y, entity.size, entity.size))
+                pygame.draw.rect(self.screen, (0, 0, 0), (x, y, entity.size, entity.size), 1)
 
             #assert (
             #    0 < x < self.width and 0 < y < self.height
@@ -355,9 +340,10 @@ class SimpleEnv(AECEnv):
                 else:
                     word = alphabet[np.argmax(entity.state.c)]
 
+                #TODO: Maybe use message to broadcast luminescence
                 message = entity.name + " sends " + word + "   "
-                message_x_pos = self.width * 0.05
-                message_y_pos = self.height * 0.95 - (self.height * 0.05 * text_line)
+                message_x_pos = self.length * 0.05
+                message_y_pos = self.width * 0.95 - (self.width * 0.05 * text_line)
                 self.game_font.render_to(
                     self.screen, (message_x_pos, message_y_pos), message, (0, 0, 0)
                 )

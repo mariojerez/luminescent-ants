@@ -112,7 +112,6 @@ class Scenario(BaseScenario):
             agent.name = f"agent_{i}"
             agent.collide = True # TODO: Decide if will set to False
             agent.silent = True
-            agent.size = 0.05
         # add resources
         world.resources = [Resource() for i in range(num_resources)] #TODO: Adjust Landmark code to Food
         for i, resource in enumerate(world.resources):
@@ -130,11 +129,15 @@ class Scenario(BaseScenario):
             resource.color = np.array([0.25, 0.25, 0.25])
         # set random initial states
         for agent in world.agents:
-            agent.state.p_pos = np_random.uniform(-1, +1, world.dim_p)
+            agent.state.p_pos = np.zeros(world.dim_p)
+            agent.state.p_pos[0] = np_random.uniform(14, 1231, 1)
+            agent.state.p_pos[1] = np_random.uniform(14, 624, 1)
             agent.state.p_vel = np.zeros(world.dim_p) # positional dimensions
             agent.state.c = np.zeros(world.dim_c) # color dimensions
         for i, resource in enumerate(world.resources): 
-            resource.state.p_pos = np_random.uniform(-1, +1, world.dim_p) # TODO: Check if something other than uniform can be used to clump food together
+            resource.state.p_pos = np.zeros(world.dim_p)
+            resource.state.p_pos[0] = np_random.uniform(5, 1240, 1)
+            resource.state.p_pos[1] = np_random.uniform(5, 633, 1) # TODO: Check if something other than uniform can be used to clump food together
             resource.state.p_vel = np.zeros(world.dim_p) #TODO: Should not have option for velocity
 
     def benchmark_data(self, agent, world):
