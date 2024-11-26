@@ -82,6 +82,8 @@ class SimpleEnv(AECEnv):
         # set spaces
         self.action_spaces = dict()
         self.observation_spaces = dict()
+        self.observed_resources = dict()
+        self.neighbors = dict()
         state_dim = 0
         for agent in self.world.agents:
             if agent.movable:
@@ -122,6 +124,7 @@ class SimpleEnv(AECEnv):
         # This will be used to scale the rendering
         all_poses = [entity.state.p_pos for entity in self.world.entities]
         self.original_cam_range = np.max(np.abs(np.array(all_poses))) #TODO: Get rid of this
+
 
         self.steps = 0
 
@@ -167,6 +170,50 @@ class SimpleEnv(AECEnv):
 
         self.current_actions = [None] * self.num_agents
 
+    def update_luminescence(self, decay=0.2, growth=0.5):
+        """
+        Update luminescence value for each agent
+
+        Parameters:
+            decay (float): luminescence decay constant (0,1)
+            growth (float): proportionality constant for enhancing the luminescence as a function of the objective/fitness function
+        """
+        self.update_objective_value()
+        # TODO: Can do the following more efficiently using numpy array
+        for agent in self.world.agents:
+            agent.state.lum = np.max([0, (1-decay)*agent.state.lum + growth*agent.state.fit])
+
+    def update_objective_value(self):
+        """
+        Update objective function values for all agent, which is defined as the amount of food within an agent's decision-domain.
+        Choosing decision domain instead of radial sensor range because agents surrounded by fewer agents should signal more loudly
+        than agents surrounded by many agents.
+        """
+        for agent in self.world.agents:
+            resources_in_domain = []
+            fit = 0
+            for resource in self.world.resources:
+                agent_to_resource = resource.state.p_pos - agent.state.p_pos
+                dist = np.sqrt(np.sum(np.square(agent_to_resource)))
+                if dist <= agent.state.decision_domain:
+                    resources_in_domain.append(resource)
+                    fit += resource.state.amount
+            self.observed_resources[agent] = resources_in_domain
+            agent.state.fit = fit
+
+    def update_neighbors(self):
+        neighbors = {agent: [] for agent in self.world.agents}
+        # TODO: Do more efficiently using numpy array
+        for agent in self.world.agents:
+            for neighbor in self.world.agents:
+                if neighbor == agent:
+                    continue
+                agent_to_neighbor = neighbor.state.p_pos - agent.state.p_pos
+                dist = np.sqrt(np.sum(np.square(agent_to_neighbor)))
+                if dist <= agent.state.decision_domain:
+                    neighbors[agent].append((neighbor))
+        self.neighbors = neighbors
+            
     def _execute_world_step(self):
         # set action for each agent
         for i, agent in enumerate(self.world.agents):
@@ -315,13 +362,24 @@ class SimpleEnv(AECEnv):
         for e, entity in enumerate(self.world.entities):
             # geometry
             x, y = entity.state.p_pos
+            font = pygame.font.Font('mpe/forage/_mpe_utils/secrcode.ttf', 20)
 
             if isinstance(entity, Agent):
                 pygame.draw.circle(self.screen, entity.color * 200, (x, y), entity.size)
-                pygame.draw.circle(self.screen, (0, 0, 0), (x, y), entity.size, 1)  # borders
+                pygame.draw.circle(self.screen, (0, 0, 0), (x, y), entity.size, 1) # border
+                # show decision domain
+                pygame.draw.circle(self.screen, (0, 0, 0), (x, y), entity.state.decision_domain, 1)
+
+                # show state information
+                text = font.render(f"τ: {round(entity.state.lum, 3)}", False, (0,0,0))
+                self.screen.blit(text, (x,y+20))
+
+
             elif isinstance(entity, Resource):
-                pygame.draw.rect(self.screen, entity.color * 200, (x, y, entity.size, entity.size))
-                pygame.draw.rect(self.screen, (0, 0, 0), (x, y, entity.size, entity.size), 1)
+                pygame.draw.rect(self.screen, entity.color * 200, (x, y, entity.size*2, entity.size*2))
+                pygame.draw.rect(self.screen, (0, 0, 0), (x, y, entity.size*2, entity.size*2), 1)
+                text = font.render(f"amount: {entity.state.amount}", False, (0,0,0))
+                self.screen.blit(text, (x,y+20))
 
             #assert (
             #    0 < x < self.width and 0 < y < self.height
