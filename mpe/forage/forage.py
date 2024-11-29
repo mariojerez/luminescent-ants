@@ -64,10 +64,10 @@ from pettingzoo.utils.conversions import parallel_wrapper_fn
 class raw_env(SimpleEnv, EzPickle):
     def __init__(
         self,
-        N=4,
+        N=10,
         local_ratio=0.5,
-        max_cycles=25,
-        continuous_actions=False,
+        max_cycles=150,
+        continuous_actions=True,
         render_mode=None
     ):
         EzPickle.__init__(
@@ -82,7 +82,7 @@ class raw_env(SimpleEnv, EzPickle):
             0.0 <= local_ratio <= 1.0
         ), "local_ratio is a proportion. Must be between 0 and 1."
         scenario = Scenario()
-        world = scenario.make_world(N)
+        world = scenario.make_world(N, N)
         SimpleEnv.__init__(
             self,
             scenario=scenario,
@@ -100,11 +100,11 @@ parallel_env = parallel_wrapper_fn(env)
 
 
 class Scenario(BaseScenario):
-    def make_world(self, num_agents=4, num_resources=2):
+    def make_world(self, num_agents=10, num_resources=20):
         world = World()
         # set any world properties first
-        world.dim_c = 2
-        num_resources = 2
+        world.dim_c = num_agents # communication dimensions
+        num_resources = num_resources
         world.collaborative = True
         # add agents
         world.agents = [Agent() for i in range(num_agents)]
@@ -133,13 +133,17 @@ class Scenario(BaseScenario):
             agent.state.p_pos[0] = np_random.uniform(14, 1231, 1)
             agent.state.p_pos[1] = np_random.uniform(14, 624, 1)
             agent.state.p_vel = np.zeros(world.dim_p) # positional dimensions
-            agent.state.c = np.zeros(world.dim_c) # color dimensions
+            agent.state.c = np.zeros(world.dim_c) # communication channel dimensions
+            agent.state.decision_domain = agent.sensor_range / 2
+            agent.state.lum = 1
+            agent.beta = np.random.randint(500, 800)
         for i, resource in enumerate(world.resources): 
             resource.state.p_pos = np.zeros(world.dim_p)
             resource.state.p_pos[0] = np_random.uniform(5, 1240, 1)
             resource.state.p_pos[1] = np_random.uniform(5, 633, 1) # TODO: Check if something other than uniform can be used to clump food together
             resource.state.p_vel = np.zeros(world.dim_p) #TODO: Should not have option for velocity
-
+            resource.state.amount = np.random.randint(1, 11)
+            
     def benchmark_data(self, agent, world):
         rew = 0
         collisions = 0

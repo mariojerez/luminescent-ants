@@ -40,7 +40,7 @@ class SimpleEnv(AECEnv):
         world,
         max_cycles,
         render_mode=None,
-        continuous_actions=False,
+        continuous_actions=True,
         local_ratio=None,
         dynamic_rescaling=False,
     ):
@@ -82,6 +82,9 @@ class SimpleEnv(AECEnv):
         # set spaces
         self.action_spaces = dict()
         self.observation_spaces = dict()
+        self.observed_resources = dict()
+        self.neighbors = dict()
+        self.detected_food = dict()
         state_dim = 0
         for agent in self.world.agents:
             if agent.movable:
@@ -100,7 +103,7 @@ class SimpleEnv(AECEnv):
             state_dim += obs_dim
             if self.continuous_actions: #TODO: Decide if we want to have continuous actions
                 self.action_spaces[agent.name] = spaces.Box(
-                    low=0, high=1, shape=(space_dim,)
+                    low=0, high=101, shape=(space_dim,)
                 )
             else:
                 self.action_spaces[agent.name] = spaces.Discrete(space_dim) #n = space_dim, start = 0 (num elements in space) #for some reason action spaces is dim_0 * 2 + 1 + obs_dim
@@ -123,6 +126,7 @@ class SimpleEnv(AECEnv):
         all_poses = [entity.state.p_pos for entity in self.world.entities]
         self.original_cam_range = np.max(np.abs(np.array(all_poses))) #TODO: Get rid of this
 
+
         self.steps = 0
 
         self.current_actions = [None] * self.num_agents
@@ -131,7 +135,7 @@ class SimpleEnv(AECEnv):
         return self.observation_spaces[agent]
 
     def action_space(self, agent):
-        return self.action_spaces[agent]
+        return self.action_spaces[agent] # warning happens here
 
     def _seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -166,6 +170,105 @@ class SimpleEnv(AECEnv):
         self.steps = 0
 
         self.current_actions = [None] * self.num_agents
+
+    def update_luminescence(self, decay=0.2, growth=0.5):
+        """
+        Update luminescence value for each agent
+
+        Parameters:
+            decay (float): luminescence decay constant (0,1)
+            growth (float): proportionality constant for enhancing the luminescence as a function of the objective/fitness function
+        """
+        self.update_objective_value()
+        # TODO: Can do the following more efficiently using numpy array
+        for agent in self.world.agents:
+            agent.state.lum = np.max([0, (1-decay)*agent.state.lum + growth*agent.state.fit])
+
+    def update_objective_value(self):
+        """
+        Update objective function values for all agent, which is defined as the amount of food within an agent's decision-domain.
+        Choosing decision domain instead of radial sensor range because agents surrounded by fewer agents should signal more loudly
+        than agents surrounded by many agents.
+        """
+        for agent in self.world.agents:
+            resources_in_domain = []
+            fit = 0
+            for resource in self.world.resources:
+                agent_to_resource = resource.state.p_pos - agent.state.p_pos
+                dist = np.sqrt(np.sum(np.square(agent_to_resource)))
+                if dist <= agent.state.decision_domain:
+                    resources_in_domain.append(resource)
+                    fit += resource.state.amount
+            self.observed_resources[agent] = resources_in_domain
+            agent.state.fit = fit
+
+    def update_neighbors(self):
+        """Update neighboring agents and resources"""
+        self.neighbors = {agent: [] for agent in self.world.agents}
+        self.detected_food = {agent: [] for agent in self.world.agents}
+        for agent in self.world.agents:
+            # Update agent neighbors
+            for neighbor in self.world.agents:
+                if neighbor == agent or neighbor.state.lum <= agent.state.lum:
+                    continue
+                agent_to_neighbor = neighbor.state.p_pos - agent.state.p_pos
+                dist = np.sqrt(np.sum(np.square(agent_to_neighbor)))
+                if dist <= agent.state.decision_domain:
+                    self.neighbors[agent].append(neighbor)
+
+            # Update resource neighbors
+            for resource in self.world.resources:
+                agent_to_food = resource.state.p_pos - agent.state.p_pos
+                dist = np.sqrt(np.sum(np.square(agent_to_food)))
+                if dist <= agent.food_detection_range:
+                    self.detected_food[agent].append(resource)
+
+    def choose_action(self, agent):
+        neighbor = self.choose_neighbor(agent)
+
+        if len(self.detected_food[agent]) > 0:
+            for resource in self.detected_food[agent]:
+                # If food is within 50cm of the agent, stop moving
+                if np.sqrt(np.sum(np.square(resource.state.p_pos - agent.state.p_pos))) <= 50:
+                    return np.array([1.0, 0.0, 0.0, 0.0, 0.0]).astype(np.float32)
+            resource_amount = np.array([resource.state.amount for resource in self.detected_food[agent]])
+            resource = self.detected_food[agent][np.argmax(resource_amount)]
+            x, y = resource.state.p_pos - agent.state.p_pos
+        elif neighbor is None:
+            if agent.state.heading is None:
+                return self.action_spaces[agent.name].sample()
+            else:
+                # adjust agent heading by up to 30 degrees
+                angle = np.radians(np.random.uniform(-30, 30))
+                rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)],
+                                            [np.sin(angle), np.cos(angle)]])
+                x, y = np.dot(rotation_matrix, agent.state.heading)
+        else:
+            x, y = neighbor.state.p_pos - agent.state.p_pos
+        x, y = np.array([x,y]) * (1 / np.sqrt(np.sum(np.square(np.array([x,y]))))) # turn to unit vector. Magnitude gets adjusted later.
+        return np.array([0, -1 * x if x < 0 else 0, x if x > 0 else 0, -1 * y if y < 0 else 0, y if y > 0 else 0]).astype(np.float32) # [no_action, move_left, move_right, move_down, move_up]
+            
+    def choose_neighbor(self, agent):
+        if len(self.neighbors[agent]) == 0:
+            return None
+        neighbor_lum = np.zeros(len(self.neighbors[agent]))
+
+        for i in range(len(self.neighbors[agent])):
+            neighbor_lum[i] = self.neighbors[agent][i].state.lum
+
+        # set to probabilities
+        neighbor_lum = neighbor_lum / np.sum(neighbor_lum)
+        rand = np.random.rand()
+        prob_sum = 0
+        for i in range(len(neighbor_lum)):
+            prob_sum += neighbor_lum[i]
+            if rand < prob_sum:
+                return self.neighbors[agent][i]
+            
+    def update_decision_range(self):
+        for agent in self.world.agents:
+            neighbor_density = (len(self.neighbors[agent]) / (np.pi * agent.sensor_range**2)) * 100 # * 100 to give density in meters
+            agent.state.decision_domain = agent.sensor_range / (1 + agent.beta * neighbor_density)
 
     def _execute_world_step(self):
         # set action for each agent
@@ -209,27 +312,32 @@ class SimpleEnv(AECEnv):
 
         if agent.movable:
             # physical action
-            agent.action.u = np.zeros(self.world.dim_p)
             if self.continuous_actions:
                 # Process continuous action as in OpenAI MPE
                 # Note: this ordering preserves the same movement direction as in the discrete case
-                agent.action.u[0] += action[0][2] - action[0][1]
-                agent.action.u[1] += action[0][4] - action[0][3]
+                # [no_action, move_left, move_right, move_down, move_up]
+                agent.action.u[0] += action[0][2] - action[0][1] # x = move_right - move_left
+                agent.action.u[1] += action[0][4] - action[0][3] # y = move_up - move_down
             else:
                 # process discrete action ## TODO: Handle step size, handle masking so they can't go off grid
                 #TODO: Check that allows themto move diagonally.
                 if action[0] == 1:
-                    agent.action.u[0] = -100.0
+                    agent.action.u[0] = -1.0
                 if action[0] == 2:
-                    agent.action.u[0] = +100.0
+                    agent.action.u[0] = +1.0
                 if action[0] == 3:
-                    agent.action.u[1] = -100.0
+                    agent.action.u[1] = -1.0
                 if action[0] == 4:
-                    agent.action.u[1] = +100.0
-            sensitivity = 5.0
-            if agent.accel is not None:
-                sensitivity = agent.accel
-            agent.action.u *= sensitivity
+                    agent.action.u[1] = +1.0
+            # sensitivity = 50.0
+            # if agent.accel is not None:
+            #     sensitivity = agent.accel
+            # agent.action.u *= sensitivity
+            if np.sqrt(np.sum(np.square(agent.action.u))) > 0:
+                # Set magnitude of force to 100
+                agent.action.u *= 100 / np.sqrt(np.sum(np.square(agent.action.u)))
+                agent.state.heading = agent.action.u / np.sqrt(np.sum(np.square(agent.action.u)))
+
             action = action[1:]
         if not agent.silent:
             # communication action
@@ -315,13 +423,29 @@ class SimpleEnv(AECEnv):
         for e, entity in enumerate(self.world.entities):
             # geometry
             x, y = entity.state.p_pos
+            font = pygame.font.Font('mpe/forage/_mpe_utils/secrcode.ttf', 20)
 
             if isinstance(entity, Agent):
                 pygame.draw.circle(self.screen, entity.color * 200, (x, y), entity.size)
-                pygame.draw.circle(self.screen, (0, 0, 0), (x, y), entity.size, 1)  # borders
+                pygame.draw.circle(self.screen, (0, 0, 0), (x, y), entity.size, 1) # border
+                # show decision domain
+                pygame.draw.circle(self.screen, (0, 0, 0), (x, y), entity.state.decision_domain, 1)
+
+                # show state information
+                text = font.render(f"lum: {round(entity.state.lum, 3)} r: {entity.state.decision_domain}", False, (0,0,0))
+                self.screen.blit(text, (x,y+20))
+
+                # draw heading
+                if entity.state.heading is not None:
+                    end_heading_x, end_heading_y = entity.state.p_pos + entity.state.heading * 1.5 * entity.size
+                    pygame.draw.line(self.screen, (255, 0, 0), (x, y), (end_heading_x, end_heading_y), 2)
+
+
             elif isinstance(entity, Resource):
-                pygame.draw.rect(self.screen, entity.color * 200, (x, y, entity.size, entity.size))
-                pygame.draw.rect(self.screen, (0, 0, 0), (x, y, entity.size, entity.size), 1)
+                pygame.draw.rect(self.screen, entity.color * 200, (x, y, entity.size*2, entity.size*2))
+                pygame.draw.rect(self.screen, (0, 0, 0), (x, y, entity.size*2, entity.size*2), 1)
+                text = font.render(f"amount: {entity.state.amount}", False, (0,0,0))
+                self.screen.blit(text, (x,y+20))
 
             #assert (
             #    0 < x < self.width and 0 < y < self.height
