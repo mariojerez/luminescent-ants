@@ -20,6 +20,8 @@ class AgentState(EntityState):
         self.decision_domain = None
         # objective / fitness value
         self.fit = None
+        # heading - direction agent is facing
+        self.heading = None
 
 """state of resource"""
 class ResourceState(EntityState):
@@ -81,7 +83,9 @@ class Agent(Entity):  # properties of agent entities
         # radius (cm or pixels)
         self.size = 14 #Turtlebot3 Burger size (L x W x H) = 13.8cm x 17.8cm x 19.2cm
         # radial sensor range (radius in cm/pixels)
-        self.sensor_range = 200
+        self.sensor_range = 300
+        # range at which can detect resource
+        self.food_detection_range = 100
         # agents are movable by default
         self.movable = True
         # cannot send communication signals
@@ -102,6 +106,8 @@ class Agent(Entity):  # properties of agent entities
         self.action_callback = None
         # max speed
         self.max_speed = 22 # cm/s
+        # sensitivity to neighbor density when deciding decision domain radius
+        self.beta = None
 
 
 class World:  # multi-agent world

@@ -64,10 +64,10 @@ from pettingzoo.utils.conversions import parallel_wrapper_fn
 class raw_env(SimpleEnv, EzPickle):
     def __init__(
         self,
-        N=20,
+        N=10,
         local_ratio=0.5,
-        max_cycles=25,
-        continuous_actions=False,
+        max_cycles=150,
+        continuous_actions=True,
         render_mode=None
     ):
         EzPickle.__init__(
@@ -136,6 +136,7 @@ class Scenario(BaseScenario):
             agent.state.c = np.zeros(world.dim_c) # communication channel dimensions
             agent.state.decision_domain = agent.sensor_range / 2
             agent.state.lum = 1
+            agent.beta = np.random.randint(500, 800)
         for i, resource in enumerate(world.resources): 
             resource.state.p_pos = np.zeros(world.dim_p)
             resource.state.p_pos[0] = np_random.uniform(5, 1240, 1)
