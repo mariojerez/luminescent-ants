@@ -22,6 +22,10 @@ class AgentState(EntityState):
         self.fit = None
         # heading - direction agent is facing
         self.heading = None
+        # behavior type
+        self.behavior = "explore" #behavior types: ["explore", "forage"]
+        # resource that the agent is carrying
+        self.carrying = ""
 
 """state of resource"""
 class ResourceState(EntityState):
@@ -29,8 +33,14 @@ class ResourceState(EntityState):
         super().__init__()
         # amount of resource left
         self.amount = 0
-        # whether or not resource is being carried
-        self.carried = False
+
+
+"""state of nest"""
+class NestState(EntityState):
+    def __init__(self):
+        super().__init__()
+        # amount of resource within nest
+        self.amount = 0
 
 
 class Action:  # action of the agent
@@ -82,6 +92,8 @@ class Agent(Entity):  # properties of agent entities
         super().__init__()
         # radius (cm or pixels)
         self.size = 14 #Turtlebot3 Burger size (L x W x H) = 13.8cm x 17.8cm x 19.2cm
+        # reach: How close an agent has to be to a resource to be able to grab it
+        self.reach = 50 #cm
         # radial sensor range (radius in cm/pixels)
         self.sensor_range = 300
         # range at which can detect resource
@@ -109,12 +121,21 @@ class Agent(Entity):  # properties of agent entities
         # sensitivity to neighbor density when deciding decision domain radius
         self.beta = None
 
+class Nest(Entity):  # properties of Nest entities
+    def __init__(self):
+        super().__init__()
+        self.movable = False
+        self.collide = False
+        self.state = NestState()
+        self.size = 30
+
 
 class World:  # multi-agent world
     def __init__(self):
         # list of agents and entities (can change at execution-time!)
         self.agents = []
         self.resources = []
+        self.nests = []
         # communication channel dimensionality
         self.dim_c = 0
         # position dimensionality
@@ -132,7 +153,7 @@ class World:  # multi-agent world
     # return all entities in the world
     @property
     def entities(self):
-        return self.agents + self.resources
+        return self.agents + self.resources + self.nests
 
     # return all agents controllable by external policies
     @property
