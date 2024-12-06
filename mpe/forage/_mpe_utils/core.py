@@ -201,7 +201,10 @@ class World:  # multi-agent world
         for i, entity in enumerate(self.entities):
             if not entity.movable:
                 continue
-            entity.state.p_pos += entity.state.p_vel * self.dt
+            gazebo_pos = entity.ros_controller.get_position()
+            entity.state.p_pos[0] = int(gazebo_pos[0]*100)
+            entity.state.p_pos[1] = int(gazebo_pos[1]*100)
+            # entity.state.p_pos = entity.state.p_vel * self.dt
             entity.state.p_vel = entity.state.p_vel * (1 - self.damping)
             if p_force[i] is not None:
                 entity.state.p_vel += (p_force[i] / entity.mass) * self.dt 
@@ -240,6 +243,8 @@ class World:  # multi-agent world
         # compute actual distance between entities
         delta_pos = entity_a.state.p_pos - entity_b.state.p_pos
         dist = np.sqrt(np.sum(np.square(delta_pos)))
+        if np.isnan(delta_pos[0]) or np.isnan(delta_pos[1]) or np.isnan(dist):
+            return [None,None]
         # minimum allowable distance
         dist_min = entity_a.size + entity_b.size
         # softmax penetration

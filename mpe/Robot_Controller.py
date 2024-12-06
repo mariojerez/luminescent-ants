@@ -18,7 +18,7 @@ class Velocity():
         return out
 
 class Robot_Controller():
-    def __init__(self,robotid=1, init_pos = (0,0)):
+    def __init__(self,robotid=1, init_pos = [0,0]):
         # rospy.init_node(f"robot_control_node{robotid}")
         # rospy.loginfo(f"robot control node started")
         self.id = robotid
@@ -35,7 +35,8 @@ class Robot_Controller():
         sub = rospy.Subscriber(f"Robot{robotid}/odom", Odometry, callback=self.odom_callback)
 
     def odom_callback(self,msg : Odometry):
-        self.position = msg.pose.pose.position
+        position = msg.pose.pose.position
+        self.position=[position.y,position.x]            #Flipped to align with petting zoo axis
         q = msg.pose.pose.orientation
         siny_cosp = 2*(q.w*q.z+q.x*q.y)
         cosy_cosp = 1-2*(q.y*q.y+q.z*q.z)
@@ -59,11 +60,11 @@ class Robot_Controller():
         # Note that upper left corner of 2-d sim is 0,0, so positive velocities and headings are to the right and downwards
         # cmd = Twist()
         sim_heading = math.atan2(sim_heading[0],sim_heading[1])
-        rospy.loginfo(f"Simulation Action for Robot{self.id}: {action} \n \
-                      Sim Heading for Robot{self.id}: {sim_heading} \n \
-                      Gazebo Heading for Robot{self.id}: {self.orientation}")
+        # rospy.loginfo(f"Simulation Action for Robot{self.id}: {action} \n \
+        #               Sim Heading for Robot{self.id}: {sim_heading} \n \
+        #               Gazebo Heading for Robot{self.id}: {self.orientation}")
         rate=0.7
-        self.linear.x = 0.5
+        self.linear.x = 0.1
         if abs(sim_heading-self.orientation)<0.1:
             pass
         elif sim_heading>self.orientation and sim_heading<(self.orientation+math.pi):
@@ -86,6 +87,9 @@ class Robot_Controller():
 
     def get_orientation(self):
         return self.orientation
+    
+    def get_position(self):
+        return self.position
 
 if __name__ == "__main__":
     rospy.init_node(f"robot_control_node")
