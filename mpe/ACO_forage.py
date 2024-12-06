@@ -1,4 +1,6 @@
+#!/usr/bin/env python3
 import forage_v0 as forage_v0
+import rospy
 
 env = forage_v0.parallel_env(render_mode="human")
 # deploy agents and resoures randomly, set initial luminescence and local-decision domain radius
