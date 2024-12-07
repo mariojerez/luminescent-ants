@@ -56,7 +56,7 @@ import numpy as np
 import time
 from gymnasium.utils import EzPickle
 
-from forage._mpe_utils.core import Agent, Resource, World
+from forage._mpe_utils.core import Agent, Resource, Nest, World
 from forage._mpe_utils.scenario import BaseScenario
 from forage._mpe_utils.simple_env import SimpleEnv, make_env
 from pettingzoo.utils.conversions import parallel_wrapper_fn
@@ -112,23 +112,31 @@ class Scenario(BaseScenario):
         time.sleep(2)                                              #Find more elegant way to wait for subscribers to have valid positions
         for i, agent in enumerate(world.agents):
             agent.name = f"agent_{i}"
-            agent.collide = True # TODO: Decide if will set to False
+            agent.collide = True
             agent.silent = True
         # add resources
         world.resources = [Resource() for i in range(num_resources)] #TODO: Adjust Landmark code to Food
         for i, resource in enumerate(world.resources):
             resource.name = "resource %d" % i
-            resource.collide = True
+            resource.collide = False
             resource.movable = False
+        # add nest
+        nest = Nest()
+        nest.name = "nest"
+        world.nests = [nest]
         return world
 
     def reset_world(self, world, np_random):
-        # random properties for agents
+
         for i, agent in enumerate(world.agents):
             agent.color = np.array([0.35, 0.35, 0.85])
-        # random properties for resources
+
         for i, resource in enumerate(world.resources):
             resource.color = np.array([0.25, 0.25, 0.25])
+        
+        for i, nest in enumerate(world.nests):
+            nest.color = np.array([0.15, 0.15, 0.15])
+
         # set random initial states
         for agent in world.agents:
             agent.state.p_pos = np.zeros(world.dim_p)
@@ -142,13 +150,15 @@ class Scenario(BaseScenario):
             agent.state.decision_domain = agent.sensor_range / 2
             agent.state.lum = 1
             agent.beta = np.random.randint(500, 800)
-        for i, resource in enumerate(world.resources): 
+        for resource in world.resources: 
             resource.state.p_pos = np.zeros(world.dim_p)
             resource.state.p_pos[0] = np_random.uniform(5, 1240, 1)
             resource.state.p_pos[1] = np_random.uniform(5, 633, 1) # TODO: Check if something other than uniform can be used to clump food together
-            resource.state.p_vel = np.zeros(world.dim_p) #TODO: Should not have option for velocity
+            resource.state.p_vel = np.zeros(world.dim_p)
             resource.state.amount = np.random.randint(1, 11)
-            
+        for nest in world.nests:
+            nest.state.p_pos = np.array([1200, 600])
+        
     def benchmark_data(self, agent, world):
         rew = 0
         collisions = 0
@@ -194,7 +204,6 @@ class Scenario(BaseScenario):
             rew -= min(dists)
         return rew
 
-    #TODO: Add local-decison domain (and radial sensor range) instance variable to agent and depict it with an outer outline in pygame.
     def observation(self, agent, world): #TODO: Edit so that can only observe agents within local-decision domain
         # get positions of all entities in this agent's reference frame
         entity_pos = []

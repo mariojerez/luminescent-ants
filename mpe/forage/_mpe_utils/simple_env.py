@@ -7,7 +7,7 @@ from gymnasium import spaces
 from gymnasium.utils import seeding
 
 from pettingzoo import AECEnv
-from forage._mpe_utils.core import Agent, Resource
+from forage._mpe_utils.core import Agent, Resource, Nest
 from pettingzoo.utils import wrappers
 from pettingzoo.utils.agent_selector import agent_selector
 
@@ -52,7 +52,7 @@ class SimpleEnv(AECEnv):
         self.length = 1246 # cm
         self.width = 639 #cm
         self.screen = pygame.Surface([self.length, self.width])
-        self.max_size = 1 #TODO: See what this does
+        self.max_size = 1
         self.game_font = pygame.freetype.Font(
             os.path.join(os.path.dirname(__file__), "secrcode.ttf"), 24
         )
@@ -85,6 +85,7 @@ class SimpleEnv(AECEnv):
         self.observed_resources = dict()
         self.neighbors = dict()
         self.detected_food = dict()
+        self.food_within_reach = dict()
         state_dim = 0
         for agent in self.world.agents:
             if agent.movable:
@@ -206,10 +207,11 @@ class SimpleEnv(AECEnv):
         """Update neighboring agents and resources"""
         self.neighbors = {agent: [] for agent in self.world.agents}
         self.detected_food = {agent: [] for agent in self.world.agents}
+        self.food_within_reach = {agent: [] for agent in self.world.agents}
         for agent in self.world.agents:
             # Update agent neighbors
             for neighbor in self.world.agents:
-                if neighbor == agent or neighbor.state.lum <= agent.state.lum:
+                if neighbor == agent or neighbor.state.lum <= agent.state.lum or neighbor.state.behavior == "forage":
                     continue
                 agent_to_neighbor = neighbor.state.p_pos - agent.state.p_pos
                 dist = np.sqrt(np.sum(np.square(agent_to_neighbor)))
@@ -218,36 +220,88 @@ class SimpleEnv(AECEnv):
 
             # Update resource neighbors
             for resource in self.world.resources:
-                agent_to_food = resource.state.p_pos - agent.state.p_pos
-                dist = np.sqrt(np.sum(np.square(agent_to_food)))
+                if resource.state.amount <= 0:
+                    continue
+                dist = self.dist(agent.state.p_pos, resource.state.p_pos)
                 if dist <= agent.food_detection_range:
                     self.detected_food[agent].append(resource)
+                if dist <= agent.reach:
+                    self.food_within_reach[agent].append(resource)
+
+    def dist(self, location_1, location_2):
+        return np.sqrt(np.sum(np.square(location_2 - location_1)))
 
     def choose_action(self, agent):
-        neighbor = self.choose_neighbor(agent)
-
-        if len(self.detected_food[agent]) > 0:
-            for resource in self.detected_food[agent]:
-                # If food is within 50cm of the agent, stop moving
-                if np.sqrt(np.sum(np.square(resource.state.p_pos - agent.state.p_pos))) <= 50:
-                    return np.array([1.0, 0.0, 0.0, 0.0, 0.0]).astype(np.float32)
-            resource_amount = np.array([resource.state.amount for resource in self.detected_food[agent]])
-            resource = self.detected_food[agent][np.argmax(resource_amount)]
-            x, y = resource.state.p_pos - agent.state.p_pos
-        elif neighbor is None:
-            if agent.state.heading is None:
-                return self.action_spaces[agent.name].sample()
+        self.set_behavior_type(agent)
+        if agent.state.behavior == "explore":
+            neighbor = self.choose_neighbor(agent) #TODO: Have choose_neighbor update an instance variable rather than returning a neighbor
+            if len(self.food_within_reach[agent]) > 0:
+                # don't move
+                return np.array([1.0, 0.0, 0.0, 0.0, 0.0]).astype(np.float32)
+            elif len(self.detected_food[agent]) > 0:
+                resource_amount = np.array([resource.state.amount for resource in self.detected_food[agent]])
+                resource = self.detected_food[agent][np.argmax(resource_amount)]
+                x, y = resource.state.p_pos - agent.state.p_pos
+            elif neighbor is None:
+                if agent.state.heading is None:
+                    return self.action_spaces[agent.name].sample()
+                else:
+                    # adjust agent heading by up to 30 degrees
+                    angle = np.radians(np.random.uniform(-30, 30))
+                    rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)],
+                                                [np.sin(angle), np.cos(angle)]])
+                    x, y = np.dot(rotation_matrix, agent.state.heading)
             else:
-                # adjust agent heading by up to 30 degrees
-                angle = np.radians(np.random.uniform(-30, 30))
-                rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)],
-                                            [np.sin(angle), np.cos(angle)]])
-                x, y = np.dot(rotation_matrix, agent.state.heading)
+                x, y = neighbor.state.p_pos - agent.state.p_pos
+        elif agent.state.behavior == "forage":
+            if agent.state.carrying == "":
+                assert len(self.food_within_reach[agent]) > 0, f"expected for agent {agent.name} to have food within reach, but it did not."
+                resource = self.food_within_reach[agent][0]
+                assert resource.state.amount > 0, f"expected resource amount > 0, but it is {resource.state.amount}."
+                agent.state.carrying = resource.name
+                resource.state.amount -= 1
+                # if resource depleted, remove from self.food_within_reach and self.detected_food
+                if resource.state.amount <= 0:
+                    for agent in self.world.agents:
+                        if resource in self.food_within_reach[agent]:
+                            self.food_within_reach[agent].remove(resource)
+                        if resource in self.detected_food[agent]:
+                            self.detected_food[agent].remove(resource)
+
+            nest = self.world.nests[0]
+            if self.dist(agent.state.p_pos, nest.state.p_pos) < nest.size:
+                # leave resoruce at nest
+                nest.state.amount += 1
+                agent.state.carrying = ""
+                agent.state.behavior = "explore"
+            # go towards nest
+            x, y = nest.state.p_pos - agent.state.p_pos
         else:
-            x, y = neighbor.state.p_pos - agent.state.p_pos
+            raise Exception("expected behavior type explore or forage, but received " + agent.state.behavior)
         x, y = np.array([x,y]) * (1 / np.sqrt(np.sum(np.square(np.array([x,y]))))) # turn to unit vector. Magnitude gets adjusted later.
         return np.array([0, -1 * x if x < 0 else 0, x if x > 0 else 0, -1 * y if y < 0 else 0, y if y > 0 else 0]).astype(np.float32) # [no_action, move_left, move_right, move_down, move_up]
             
+    def set_behavior_type(self, agent):
+        if agent.state.carrying != "":
+            agent.state.behavior = "forage"
+            return
+        elif len(self.food_within_reach[agent]) > 0:
+            for resource in self.food_within_reach[agent]:
+                if not self.resource_has_signaller(resource, agent):
+                    agent.state.behavior = "explore"
+                    return
+            agent.state.behavior = "forage"
+            return
+        agent.state.behavior = "explore"
+
+    def resource_has_signaller(self, resource, other_than_agent):
+        for agent in self.food_within_reach:
+            if agent == other_than_agent:
+                continue
+            if resource in self.food_within_reach[agent] and agent.state.behavior == "explore":
+                return True
+        return False
+
     def choose_neighbor(self, agent):
         if len(self.neighbors[agent]) == 0:
             return None
@@ -439,7 +493,7 @@ class SimpleEnv(AECEnv):
                 pygame.draw.circle(self.screen, (0, 0, 0), (x, y), entity.state.decision_domain, 1)
 
                 # show state information
-                text = font.render(f"id: {entity.id} lum: {round(entity.state.lum, 3)} r: {entity.state.decision_domain}", False, (0,0,0))
+                text = font.render(f"{entity.name} behavior: {entity.state.behavior}\ncarrying: {entity.state.carrying}", False, (0,0,0))
                 self.screen.blit(text, (x,y+20))
 
                 # draw heading
@@ -451,8 +505,13 @@ class SimpleEnv(AECEnv):
             elif isinstance(entity, Resource):
                 pygame.draw.rect(self.screen, entity.color * 200, (x, y, entity.size*2, entity.size*2))
                 pygame.draw.rect(self.screen, (0, 0, 0), (x, y, entity.size*2, entity.size*2), 1)
-                text = font.render(f"amount: {entity.state.amount}", False, (0,0,0))
+                text = font.render(f"{entity.name} amount: {entity.state.amount}", False, (0,0,0))
                 self.screen.blit(text, (x,y+20))
+
+            elif isinstance(entity, Nest):
+                pygame.draw.circle(self.screen, entity.color*200, (x, y), entity.size)
+                text = font.render(f"amount: {entity.state.amount}", False, (0,0,0))
+                self.screen.blit(text, (x-60,y-60))
 
             #assert (
             #    0 < x < self.width and 0 < y < self.height
