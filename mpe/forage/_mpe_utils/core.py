@@ -1,5 +1,5 @@
 import numpy as np
-
+from Robot_Controller import Robot_Controller
 
 class EntityState:  # physical/external base state of all entities
     def __init__(self):
@@ -88,7 +88,7 @@ class Resource(Entity):  # properties of resource entities
         
 
 class Agent(Entity):  # properties of agent entities
-    def __init__(self):
+    def __init__(self,robot_id):
         super().__init__()
         # radius (cm or pixels)
         self.size = 14 #Turtlebot3 Burger size (L x W x H) = 13.8cm x 17.8cm x 19.2cm
@@ -120,6 +120,10 @@ class Agent(Entity):  # properties of agent entities
         self.max_speed = 22 # cm/s
         # sensitivity to neighbor density when deciding decision domain radius
         self.beta = None
+        #id
+        self.id = robot_id
+        # ROS control
+        self.ros_controller = Robot_Controller(robot_id)
 
 class Nest(Entity):  # properties of Nest entities
     def __init__(self):
@@ -173,14 +177,14 @@ class World:  # multi-agent world
         # gather forces applied to entities
         p_force = [None] * len(self.entities)
         # apply agent physical controls
-        p_force = self.apply_action_force(p_force)
+        p_force = self.apply_action_force(p_force)              #Send out velocity command #TODO
         # apply environment forces
-        p_force = self.apply_environment_force(p_force)
+        p_force = self.apply_environment_force(p_force)         #Don't need this for gazebo integration
         # integrate physical state
-        self.integrate_state(p_force)
+        self.integrate_state(p_force)                           #Don't need this for gazebo integration
         # update agent state
         for agent in self.agents:
-            self.update_agent_state(agent)
+            self.update_agent_state(agent)                       #Update position based of odom message
 
     # gather agent action forces
     def apply_action_force(self, p_force):
@@ -218,7 +222,10 @@ class World:  # multi-agent world
         for i, entity in enumerate(self.entities):
             if not entity.movable:
                 continue
-            entity.state.p_pos += entity.state.p_vel * self.dt
+            gazebo_pos = entity.ros_controller.get_position()
+            entity.state.p_pos[0] = int(gazebo_pos[0]*100)
+            entity.state.p_pos[1] = int(gazebo_pos[1]*100)
+            # entity.state.p_pos = entity.state.p_vel * self.dt
             entity.state.p_vel = entity.state.p_vel * (1 - self.damping)
             if p_force[i] is not None:
                 entity.state.p_vel += (p_force[i] / entity.mass) * self.dt 
@@ -257,6 +264,8 @@ class World:  # multi-agent world
         # compute actual distance between entities
         delta_pos = entity_a.state.p_pos - entity_b.state.p_pos
         dist = np.sqrt(np.sum(np.square(delta_pos)))
+        if np.isnan(delta_pos[0]) or np.isnan(delta_pos[1]) or np.isnan(dist):
+            return [None,None]
         # minimum allowable distance
         dist_min = entity_a.size + entity_b.size
         # softmax penetration

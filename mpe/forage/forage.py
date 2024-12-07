@@ -53,6 +53,7 @@ simple_spread_v3.env(N=3, local_ratio=0.5, max_cycles=25, continuous_actions=Fal
 """
 
 import numpy as np
+import time
 from gymnasium.utils import EzPickle
 
 from forage._mpe_utils.core import Agent, Resource, Nest, World
@@ -107,7 +108,8 @@ class Scenario(BaseScenario):
         num_resources = num_resources
         world.collaborative = True
         # add agents
-        world.agents = [Agent() for i in range(num_agents)]
+        world.agents = [Agent(i+1) for i in range(num_agents)]    #Passing in i+1, used for identifying which robot it controls in ROS
+        time.sleep(2)                                              #Find more elegant way to wait for subscribers to have valid positions
         for i, agent in enumerate(world.agents):
             agent.name = f"agent_{i}"
             agent.collide = True
@@ -138,8 +140,11 @@ class Scenario(BaseScenario):
         # set random initial states
         for agent in world.agents:
             agent.state.p_pos = np.zeros(world.dim_p)
-            agent.state.p_pos[0] = np_random.uniform(14, 1231, 1)
-            agent.state.p_pos[1] = np_random.uniform(14, 624, 1)
+            gazebo_pos = agent.ros_controller.get_position()
+            agent.state.p_pos[0] = int(gazebo_pos[0]*100)                                                                 #TODO get positions from Gazebo/real_world here
+            agent.state.p_pos[1] = int(gazebo_pos[1]*100)          
+            # agent.state.p_pos[0] = np_random.uniform(14, 1231, 1)                                                                   #TODO get positions from Gazebo/real_world here
+            # agent.state.p_pos[1] = np_random.uniform(14, 624, 1)
             agent.state.p_vel = np.zeros(world.dim_p) # positional dimensions
             agent.state.c = np.zeros(world.dim_c) # communication channel dimensions
             agent.state.decision_domain = agent.sensor_range / 2

@@ -391,7 +391,11 @@ class SimpleEnv(AECEnv):
                 # Set magnitude of force to 100
                 agent.action.u *= 100 / np.sqrt(np.sum(np.square(agent.action.u)))
                 agent.state.heading = agent.action.u / np.sqrt(np.sum(np.square(agent.action.u)))
-
+                agent.ros_controller.update_velocity_petting_zoo(agent.action.u,agent.state.heading)
+                # agent.state.heading = agent.ros_controller.get_orientation()
+            else:
+                #If not action stop robot motion
+                agent.ros_controller.halt()
             action = action[1:]
         if not agent.silent:
             # communication action
@@ -477,7 +481,10 @@ class SimpleEnv(AECEnv):
         for e, entity in enumerate(self.world.entities):
             # geometry
             x, y = entity.state.p_pos
-            font = pygame.font.Font('mpe/forage/_mpe_utils/secrcode.ttf', 20)
+            font = pygame.font.Font(
+                os.path.join(os.path.dirname(__file__), "secrcode.ttf"), 20
+            )
+            # font = pygame.font.Font('mpe/forage/_mpe_utils/secrcode.ttf', 20)
 
             if isinstance(entity, Agent):
                 pygame.draw.circle(self.screen, entity.color * 200, (x, y), entity.size)
@@ -533,6 +540,8 @@ class SimpleEnv(AECEnv):
                 text_line += 1
 
     def close(self):
+        for agent in self.world.agents:
+            agent.ros_controller.halt()
         if self.screen is not None:
             pygame.quit()
             self.screen = None

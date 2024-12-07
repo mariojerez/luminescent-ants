@@ -1,4 +1,9 @@
+#!/usr/bin/env python3
 import forage_v0 as forage_v0
+import rospy
+import time
+
+time.sleep(15) #Let Gazebo boot up before starting sim
 
 env = forage_v0.parallel_env(render_mode="human")
 # deploy agents and resoures randomly, set initial luminescence and local-decision domain radius
