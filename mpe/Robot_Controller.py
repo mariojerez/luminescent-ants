@@ -65,8 +65,8 @@ class Robot_Controller():
         #               Gazebo Heading for Robot{self.id}: {self.orientation}")
         rate=0.7
         self.linear.x = 0.1
-        if abs(sim_heading-self.orientation)<0.1:
-            pass
+        if abs(sim_heading-self.orientation)<0.5:
+            self.angular.z=0
         elif sim_heading>self.orientation and sim_heading<(self.orientation+math.pi):
             self.angular.z=rate
         elif sim_heading<self.orientation and sim_heading>(self.orientation-math.pi):
