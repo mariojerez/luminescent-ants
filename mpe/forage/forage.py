@@ -64,9 +64,9 @@ from pettingzoo.utils.conversions import parallel_wrapper_fn
 class raw_env(SimpleEnv, EzPickle):
     def __init__(
         self,
-        N=10,
+        N=20,
         local_ratio=0.5,
-        max_cycles=150,
+        max_cycles=1000,
         continuous_actions=True,
         render_mode=None
     ):
@@ -82,7 +82,7 @@ class raw_env(SimpleEnv, EzPickle):
             0.0 <= local_ratio <= 1.0
         ), "local_ratio is a proportion. Must be between 0 and 1."
         scenario = Scenario()
-        world = scenario.make_world(N, N)
+        world = scenario.make_world(N, N // 2)
         SimpleEnv.__init__(
             self,
             scenario=scenario,
@@ -100,7 +100,7 @@ parallel_env = parallel_wrapper_fn(env)
 
 
 class Scenario(BaseScenario):
-    def make_world(self, num_agents=10, num_resources=20):
+    def make_world(self, num_agents=20, num_resources=10):
         world = World()
         # set any world properties first
         world.dim_c = num_agents # communication dimensions
@@ -152,7 +152,7 @@ class Scenario(BaseScenario):
             resource.state.p_vel = np.zeros(world.dim_p)
             resource.state.amount = np.random.randint(1, 11)
         for nest in world.nests:
-            nest.state.p_pos = np.array([1200, 600])
+            nest.state.p_pos = np.array([1246//2, 639//2])
         
     def benchmark_data(self, agent, world):
         rew = 0

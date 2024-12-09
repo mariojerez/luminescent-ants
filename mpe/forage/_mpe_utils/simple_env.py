@@ -172,7 +172,7 @@ class SimpleEnv(AECEnv):
 
         self.current_actions = [None] * self.num_agents
 
-    def update_luminescence(self, decay=0.2, growth=0.5):
+    def update_luminescence(self, decay=0.5, growth=0.5):
         """
         Update luminescence value for each agent
 
@@ -183,7 +183,8 @@ class SimpleEnv(AECEnv):
         self.update_objective_value()
         # TODO: Can do the following more efficiently using numpy array
         for agent in self.world.agents:
-            agent.state.lum = np.max([0, (1-decay)*agent.state.lum + growth*agent.state.fit])
+            # Keep luminescence between 1 and 10
+            agent.state.lum = np.min([np.max([1, (1-decay)*agent.state.lum + growth*agent.state.fit]), 10])
 
     def update_objective_value(self):
         """
@@ -486,7 +487,7 @@ class SimpleEnv(AECEnv):
                 pygame.draw.circle(self.screen, (0, 0, 0), (x, y), entity.state.decision_domain, 1)
 
                 # show state information
-                text = font.render(f"{entity.name} behavior: {entity.state.behavior}\ncarrying: {entity.state.carrying}", False, (0,0,0))
+                text = font.render(f"lum: {round(entity.state.lum, 1)}", False, (0,0,0))
                 self.screen.blit(text, (x,y+20))
 
                 # draw heading
