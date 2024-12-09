@@ -15,7 +15,7 @@ class AgentState(EntityState):
         # communication utterance
         self.c = None
         # luminescence level
-        self.lum = None
+        self.lum = 1
         # local-decision domain (radius cm)
         self.decision_domain = None
         # objective / fitness value
@@ -117,7 +117,7 @@ class Agent(Entity):  # properties of agent entities
         # script behavior to execute
         self.action_callback = None
         # max speed
-        self.max_speed = 22 # cm/s
+        self.max_speed = 40 # cm/s
         # sensitivity to neighbor density when deciding decision domain radius
         self.beta = None
 
