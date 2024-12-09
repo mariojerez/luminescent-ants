@@ -3,6 +3,7 @@ import rospy
 import math
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist
+from sensor_msgs.msg import LaserScan
 
 rospy.init_node(f"robot_control_node2")
 rospy.loginfo(f"robot control node started")
@@ -26,13 +27,15 @@ class Robot_Controller():
         self.orientation=0
         self.linear = Velocity()
         self.angular = Velocity()
+        self.blocked = False
         
         # rospy.init_node(f"robot_control_node{robotid}")
         # rospy.loginfo(f"robot control node {robotid} started")
         
         
-        self.pub = rospy.Publisher(f"Robot{robotid}/cmd_vel",Twist,queue_size=10)
-        sub = rospy.Subscriber(f"Robot{robotid}/odom", Odometry, callback=self.odom_callback)
+        self.pub = rospy.Publisher(f"Robot{self.id}/cmd_vel",Twist,queue_size=10)
+        sub = rospy.Subscriber(f"Robot{self.id}/odom", Odometry, callback=self.odom_callback)
+        sub2 = rospy.Subscriber(f"Robot{self.id}/scan",LaserScan,callback=self.scan_callback)
 
     def odom_callback(self,msg : Odometry):
         position = msg.pose.pose.position
@@ -54,17 +57,31 @@ class Robot_Controller():
         cmd.angular.z = self.angular.z
         self.pub.publish(cmd)
 
+    def scan_callback(self, msg: LaserScan):
+        ranges = msg.ranges
+        closest = min([min(ranges[:40]),min(ranges[-40:])])
+        cmd = Twist()
+        # rospy.loginfo(f"{closest}")
+        if closest<0.35:
+            self.blocked = True
+            self.linear.x = 0.0
+            self.angular.z = -0.5
+        else:
+            self.blocked=False
+
     def update_velocity_petting_zoo(self, action, sim_heading):
         # Takes in petting zoo action, [x y] velocities
         # and simulation heading of robot
         # Note that upper left corner of 2-d sim is 0,0, so positive velocities and headings are to the right and downwards
         # cmd = Twist()
+        if self.blocked:
+            return
         sim_heading = math.atan2(sim_heading[0],sim_heading[1])
         # rospy.loginfo(f"Simulation Action for Robot{self.id}: {action} \n \
         #               Sim Heading for Robot{self.id}: {sim_heading} \n \
         #               Gazebo Heading for Robot{self.id}: {self.orientation}")
         rate=0.7
-        self.linear.x = 0.1
+        self.linear.x = 0.3
         if abs(sim_heading-self.orientation)<0.5:
             self.angular.z=0
         elif sim_heading>self.orientation and sim_heading<(self.orientation+math.pi):
