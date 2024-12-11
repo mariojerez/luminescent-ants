@@ -95,7 +95,7 @@ class Agent(Entity):  # properties of agent entities
         # reach: How close an agent has to be to a resource to be able to grab it
         self.reach = 50 #cm
         # radial sensor range (radius in cm/pixels)
-        self.sensor_range = 300
+        self.sensor_range = 400
         # range at which can detect resource
         self.food_detection_range = 100
         # agents are movable by default
