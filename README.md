@@ -1,40 +1,24 @@
 # Foraging with Glowworm Swarm Based Algorithm in pettingzoo
 An Ant Colony Optimization model of muliple agents simulated in PettingZoo
 
-We are building off of the Simple Spread environment in the pettingzoo library.
+This was built from of the Simple Spread environment in the pettingzoo library.
 https://pettingzoo.farama.org/environments/mpe/simple_spread/
 
-# Getting Started as a Contributor
-Be sure that your version of Python is between 3.8 and 3.11. 3.12 is not supported yet. To get started, clone this git repository. Within it, create a virtual environment. Once you're running the virtual environment, install the dependencies found in requirements.txt. For example, if using venv from the mac terminal,
-```console
-> cd luminescent-ants # change directory to the repo
-> python -m venv venv # create a virtual environment (venv) in a folder called venv.
-> source venv/bin/activate # activate virtual environment
-> python -m pip install -r requirements.txt # install dependencies listed in requirements.txt
-```
+To see the algorithm in action, run mpe/ACO_forage.py or
 
-## Useful git commands
-```console
-## Create new branch
-git clone [url]
-git pull # Do while in main branch! Pulls changes from repo. Do this frequently and before creatinf new branch so working with latest code.
-git branch [branch_name] # Create a new branch
-git branch # shows what branch you're on
-git switch [branch_name] #switch to new branch
+watch a video: https://youtu.be/-sATLyRs4Sg
 
-## Stage files to be committed
-git status # See changes you've made, and changes you've added, and changes that are uncommitted. Use frequently.
-git add [file_name] # Stage changes you made to a spefific file.
-git add --all # Stage all changes you made, preparing to be committed
-git reset # undoes git add if you decide you don't want to stage something
-git commit -m "[enter commit comment, maybe mention issue #[issuenum]]
-git push origin [branch_name] #pushes changes to branch in remote repository so others can see
+## High Level Description
+Agents and resources get randomly distributed round the map. The objective is for agents to find resources and bring them to the nest (in the center of the map). They can communicate through luminescence values, similarly to how ants communicate through pheromones. When an agent is surrounded by lots of resources, they have a higher luminescence value. If there are agents within agent i's decision domain, agent i will follow one of them if their luminescence values are greater than that of agent i; otherwise, agent i will go in a random direction. The probability of agent i following another agent is proportional to the strength of that agent's luminescence value.
 
-## merge changes to main
-creat a pull request on GitHub so that the rest of the team can review your code
-before merging to main branch.
+Agents can exhibit two behaviors: explore and forage. All agents start off as explorers, where they follow K. N. Krishnanand and D. Ghose' glowworm swarm based algorithm [1]. Once they reach a resource, they stop and keep emitting their luminescence values (which keep getting updated). If an agent is within reach of a resource, and there is already another agent that is also within reach of that resource exhibiting explore behavior, than the agent switches to foraging behavior where it "picks up" a unit of that resource and takes it to the nest. After leaving it at the nest, it exhibits explore behavior once again.
 
-helpful video: https://youtu.be/MnUd31TvBoU?si=BMQ1mHRvrJd1we3S
-```
 
-A good practice is to create an issue for whatever you want to fix or work on, and then create a branch to work on that specific issue. Mention the issue number in the commit message and close the issue after you've merged to the main branch. Thoughtful comments are always helpful.
+[1] K. N. Krishnanand and D. Ghose, “Detection of multiple source locations using a glowworm metaphor with applications to collective
+robotics,” in Proceedings 2005 IEEE Swarm Intelligence Symposium, 2005. SIS 2005., Conference Proceedings, pp. 84–91. [Online].
+Available: https://ieeexplore.ieee.org/document/1501606/
+
+## Integration with Turtlebots in Gazebo
+See the ROS_integration branch
+
+The ROS code can be found here: https://github.com/jackswanberg/ROS_Ant_Colony
