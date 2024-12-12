@@ -95,9 +95,9 @@ class Agent(Entity):  # properties of agent entities
         # reach: How close an agent has to be to a resource to be able to grab it
         self.reach = 50 #cm
         # radial sensor range (radius in cm/pixels)
-        self.sensor_range = 400
+        self.sensor_range = 300
         # range at which can detect resource
-        self.food_detection_range = 100
+        self.food_detection_range = 50
         # agents are movable by default
         self.movable = True
         # cannot send communication signals
@@ -117,7 +117,7 @@ class Agent(Entity):  # properties of agent entities
         # script behavior to execute
         self.action_callback = None
         # max speed
-        self.max_speed = 40 # cm/s
+        self.max_speed = 22 # cm/s
         # sensitivity to neighbor density when deciding decision domain radius
         self.beta = None
 

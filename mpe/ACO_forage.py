@@ -1,6 +1,8 @@
 import forage_v0 as forage_v0
 import numpy as np
 
+export_data = False
+data_file_name = "forage_0.XX_decay_XXX_range_trialX.csv"
 masks = {}
 buffer = 50 #cm
 env = forage_v0.parallel_env(render_mode="human")
@@ -28,7 +30,8 @@ while env.agents:
     # obervation space of agents = Box(low=-inf, high=inf, shape=(20,), dtype=float32)
     observations, rewards, terminations, truncations, infos = env.step(actions)
     env.aec_env.update_decision_range()
-    data.append([env.aec_env.world.nests[0].state.amount, env.aec_env.num_random_steps, len(env.aec_env.resources_discovered), len(env.aec_env.resources_foraged), len(env.aec_env.resources_depleted)])
+    if export_data:
+        data.append([env.aec_env.world.nests[0].state.amount, env.aec_env.num_random_steps, len(env.aec_env.resources_discovered), len(env.aec_env.resources_foraged), len(env.aec_env.resources_depleted)])
     
 
 print(f"Foraged: {env.aec_env.world.nests[0].state.amount}")
@@ -37,7 +40,7 @@ print(f"Resources discovered: {len(env.aec_env.resources_discovered)}")
 print(f"Resources foraged: {len(env.aec_env.resources_foraged)}")
 print(f"Resources depleted: {len(env.aec_env.resources_depleted)}")
 
-# export info
-data = np.array(data)
-np.savetxt("forage_0.50_decay_400_range_trial1.csv", data, delimiter=',', fmt='%d')
-env.close()
+if export_data:
+    data = np.array(data)
+    np.savetxt(data_file_name, data, delimiter=',', fmt='%d')
+    env.close()

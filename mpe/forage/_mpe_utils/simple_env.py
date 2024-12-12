@@ -462,8 +462,8 @@ class SimpleEnv(AECEnv):
         self._cumulative_rewards[cur_agent] = 0
         self._accumulate_rewards()
 
-        #if self.render_mode == "human":
-        #    self.render()
+        if self.render_mode == "human":
+           self.render()
 
     def enable_render(self, mode="human"):
         if not self.renderOn and mode == "human":

@@ -2,6 +2,9 @@ import numpy as np
 from matplotlib import pyplot as plt
 import matplotlib.cm as cm
 
+_step_size = 50
+_num_cycles = 1500
+
 def main():
     d_25_r_200_file_paths = ["forage_0.25_decay_200_range_trial1.csv",
                             "forage_0.25_decay_200_range_trial2.csv",
@@ -87,11 +90,11 @@ def main():
 def get_data_from_trials(trial_file_names):
     trials_data = []
     for trial_file in trial_file_names:
-        trials_data.append(np.genfromtxt(trial_file, delimiter=',')[::50]) #reduce array so keeps every 50 data points
+        trials_data.append(np.genfromtxt(trial_file, delimiter=',')[::_step_size]) #reduce array so keeps every _step_size data points
     return np.array(trials_data)
 
 def make_scatter_plot(X, y_index, colors, title, x_label, y_label, legend_labels, markers):
-    x = np.arange(start=1, stop=len(X[0])+1, step=1)
+    x = np.arange(start=1, stop=_num_cycles+1, step=_step_size)
     for i, y in enumerate(X):
         plt.scatter(x, y[:,y_index], color=colors[i], marker=markers[i], label=legend_labels[i])
     plt.legend()
