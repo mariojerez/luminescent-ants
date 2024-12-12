@@ -64,9 +64,9 @@ from pettingzoo.utils.conversions import parallel_wrapper_fn
 class raw_env(SimpleEnv, EzPickle):
     def __init__(
         self,
-        N=20,
+        N=14,
         local_ratio=0.5,
-        max_cycles=1000,
+        max_cycles=1500,
         continuous_actions=True,
         render_mode=None
     ):
@@ -113,7 +113,7 @@ class Scenario(BaseScenario):
             agent.collide = True
             agent.silent = True
         # add resources
-        world.resources = [Resource() for i in range(num_resources)] #TODO: Adjust Landmark code to Food
+        world.resources = [Resource() for i in range(num_resources)]
         for i, resource in enumerate(world.resources):
             resource.name = "resource %d" % i
             resource.collide = False
@@ -123,7 +123,7 @@ class Scenario(BaseScenario):
         nest.name = "nest"
         world.nests = [nest]
         return world
-
+    
     def reset_world(self, world, np_random):
 
         for i, agent in enumerate(world.agents):
@@ -145,10 +145,10 @@ class Scenario(BaseScenario):
             agent.state.decision_domain = agent.sensor_range / 2
             agent.state.lum = 1
             agent.beta = np.random.randint(500, 800)
-        for resource in world.resources: 
+        for i, resource in enumerate(world.resources): 
             resource.state.p_pos = np.zeros(world.dim_p)
             resource.state.p_pos[0] = np_random.uniform(5, 1240, 1)
-            resource.state.p_pos[1] = np_random.uniform(5, 633, 1) # TODO: Check if something other than uniform can be used to clump food together
+            resource.state.p_pos[1] = np_random.uniform(5, 633, 1)
             resource.state.p_vel = np.zeros(world.dim_p)
             resource.state.amount = np.random.randint(1, 11)
         for nest in world.nests:

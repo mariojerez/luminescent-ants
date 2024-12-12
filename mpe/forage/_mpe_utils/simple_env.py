@@ -86,6 +86,10 @@ class SimpleEnv(AECEnv):
         self.neighbors = dict()
         self.detected_food = dict()
         self.food_within_reach = dict()
+        self.num_random_steps = 0
+        self.resources_discovered = set()
+        self.resources_foraged = set()
+        self.resources_depleted = set()
         state_dim = 0
         for agent in self.world.agents:
             if agent.movable:
@@ -172,7 +176,7 @@ class SimpleEnv(AECEnv):
 
         self.current_actions = [None] * self.num_agents
 
-    def update_luminescence(self, decay=0.5, growth=0.5):
+    def update_luminescence(self, decay=0.50, growth=0.5):
         """
         Update luminescence value for each agent
 
@@ -226,13 +230,29 @@ class SimpleEnv(AECEnv):
                 dist = self.dist(agent.state.p_pos, resource.state.p_pos)
                 if dist <= agent.food_detection_range:
                     self.detected_food[agent].append(resource)
+                    self.resources_discovered.add(resource.name)
                 if dist <= agent.reach:
                     self.food_within_reach[agent].append(resource)
 
     def dist(self, location_1, location_2):
         return np.sqrt(np.sum(np.square(location_2 - location_1)))
 
-    def choose_action(self, agent):
+    def choose_action(self, agent, mask=None):
+        assert isinstance(
+            mask, np.ndarray
+        ), f"The expected type of the mask is np.ndarray, actual type: {type(mask)}"
+        assert (
+                mask.dtype == np.int8
+        ), f"The expected dtype of the mask is np.int8, actual dtype: {mask.dtype}"
+
+        action = None
+        x, y = None, None
+
+        if isinstance(agent, str):
+            agent_name = agent
+            agent = self.get_agent(agent_name)
+            assert agent is not None, f"could not find agent with n {agent_name}"
+
         self.set_behavior_type(agent)
         if agent.state.behavior == "explore":
             neighbor = self.choose_neighbor(agent) #TODO: Have choose_neighbor update an instance variable rather than returning a neighbor
@@ -245,13 +265,14 @@ class SimpleEnv(AECEnv):
                 x, y = resource.state.p_pos - agent.state.p_pos
             elif neighbor is None:
                 if agent.state.heading is None:
-                    return self.action_spaces[agent.name].sample()
+                    action = self.action_spaces[agent.name].sample()
                 else:
                     # adjust agent heading by up to 30 degrees
                     angle = np.radians(np.random.uniform(-30, 30))
                     rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)],
                                                 [np.sin(angle), np.cos(angle)]])
                     x, y = np.dot(rotation_matrix, agent.state.heading)
+                self.num_random_steps += 1
             else:
                 x, y = neighbor.state.p_pos - agent.state.p_pos
         elif agent.state.behavior == "forage":
@@ -260,9 +281,11 @@ class SimpleEnv(AECEnv):
                 resource = self.food_within_reach[agent][0]
                 assert resource.state.amount > 0, f"expected resource amount > 0, but it is {resource.state.amount}."
                 agent.state.carrying = resource.name
+                self.resources_foraged.add(resource.name)
                 resource.state.amount -= 1
                 # if resource depleted, remove from self.food_within_reach and self.detected_food
                 if resource.state.amount <= 0:
+                    self.resources_depleted.add(resource.name)
                     for agent in self.world.agents:
                         if resource in self.food_within_reach[agent]:
                             self.food_within_reach[agent].remove(resource)
@@ -279,8 +302,10 @@ class SimpleEnv(AECEnv):
             x, y = nest.state.p_pos - agent.state.p_pos
         else:
             raise Exception("expected behavior type explore or forage, but received " + agent.state.behavior)
-        x, y = np.array([x,y]) * (1 / np.sqrt(np.sum(np.square(np.array([x,y]))))) # turn to unit vector. Magnitude gets adjusted later.
-        return np.array([0, -1 * x if x < 0 else 0, x if x > 0 else 0, -1 * y if y < 0 else 0, y if y > 0 else 0]).astype(np.float32) # [no_action, move_left, move_right, move_down, move_up]
+        if x is not None:
+            x, y = np.array([x,y]) * (1 / np.sqrt(np.sum(np.square(np.array([x,y]))))) # turn to unit vector. Magnitude gets adjusted later.
+        # [no_action, move_left, move_right, move_down, move_up]
+        return action if action is not None else np.array([0, -1 * x if x < 0 else 0, x if x > 0 else 0, -1 * y if y < 0 else 0, y if y > 0 else 0]).astype(np.float32) * mask
             
     def set_behavior_type(self, agent):
         if agent.state.carrying != "":
@@ -302,6 +327,12 @@ class SimpleEnv(AECEnv):
             if resource in self.food_within_reach[agent] and agent.state.behavior == "explore":
                 return True
         return False
+    
+    def get_agent(self, agent_name):
+        for agent in self.world.agents:
+            if agent.name == agent_name:
+                return agent
+        return None
 
     def choose_neighbor(self, agent):
         if len(self.neighbors[agent]) == 0:
@@ -432,7 +463,7 @@ class SimpleEnv(AECEnv):
         self._accumulate_rewards()
 
         if self.render_mode == "human":
-            self.render()
+           self.render()
 
     def enable_render(self, mode="human"):
         if not self.renderOn and mode == "human":
